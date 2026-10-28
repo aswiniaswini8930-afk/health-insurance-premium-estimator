@@ -4,110 +4,200 @@ import pandas as pd
 import joblib
 from pathlib import Path
 
+# -----------------------------------
+# 1. Page Configuration
+# -----------------------------------
 st.set_page_config(
     page_title="Health Insurance Premium Estimator",
     page_icon="💰",
     layout="wide"
 )
 
+# -----------------------------------
+# 2. Application Header
+# -----------------------------------
 st.title("💰 Health Insurance Premium Estimator")
-st.write("Enter your details to estimate your insurance premium.")
+
+st.write(
+    "Enter your details below to estimate your "
+    "health insurance premium using a machine learning model."
+)
+
 st.divider()
 
-# Load the model bundle
+# -----------------------------------
+# 3. Load Saved Model Bundle
+# -----------------------------------
 MODEL_PATH = Path(__file__).parent / "insurance_bundle.pkl"
+
 
 @st.cache_resource
 def load_bundle():
     return joblib.load(MODEL_PATH)
 
+
 try:
     bundle = load_bundle()
+
     model = bundle["model"]
     scaler = bundle["scaler"]
     features = list(bundle["features"])
+
 except Exception as e:
-    st.error(f"Unable to load model bundle: {e}")
+    st.error(f"Unable to load the model: {e}")
     st.stop()
 
-st.success("Insurance model loaded successfully!")
+# -----------------------------------
+# 4. Input Form
+# -----------------------------------
 st.subheader("Enter Your Details")
+
+st.caption(
+    "Complete all fields and click Estimate Premium."
+)
 
 inputs = {}
 
 with st.form("insurance_form"):
+
     columns = st.columns(2)
 
     for i, feature in enumerate(features):
-        f = str(feature)
-        key = f.lower().strip()
+
+        feature_name = str(feature)
+        key = feature_name.lower().strip()
 
         with columns[i % 2]:
+
+            # Sex
             if key == "sex":
-                inputs[f] = st.selectbox(
-                    "Sex", [0, 1],
+
+                inputs[feature_name] = st.selectbox(
+                    "Sex",
+                    options=[0, 1],
                     format_func=lambda x: {
-                        0: "Female (0)", 1: "Male (1)"
+                        0: "Female",
+                        1: "Male"
                     }[x]
                 )
 
+            # Smoking status
             elif key == "smoker":
-                inputs[f] = st.selectbox(
-                    "Smoking Status", [0, 1],
+
+                inputs[feature_name] = st.selectbox(
+                    "Smoking Status",
+                    options=[0, 1],
                     format_func=lambda x: {
-                        0: "No (0)", 1: "Yes (1)"
+                        0: "Non-smoker",
+                        1: "Smoker"
                     }[x]
                 )
 
+            # One-hot encoded region columns
             elif key.startswith("region_"):
-                inputs[f] = st.selectbox(
-                    f.replace("_", " ").title(), [0, 1]
+
+                inputs[feature_name] = st.selectbox(
+                    key.replace("_", " ").title(),
+                    options=[0, 1]
                 )
 
-            elif key in ("claim_amount", "annual_salary","hospital_expenditure"):
-                inputs[f] = st.number_input(
-                    f.replace("_", " ").title(),
+            # Large numeric values
+            elif key in (
+                "claim_amount",
+                "annual_salary",
+                "hospital_expenditure"
+            ):
+
+                inputs[feature_name] = st.number_input(
+                    key.replace("_", " ").title(),
                     min_value=0.0,
                     value=0.0,
-                    step=1000.0,
-                    format="%.2f"
+                    step=0.01,
+                    format="%.5f",
+                    key=f"input_{key}"
                 )
 
+            # Other numeric fields
             else:
-                inputs[f] = st.number_input(
-                    f.replace("_", " ").title(),
+
+                inputs[feature_name] = st.number_input(
+                    key.replace("_", " ").title(),
                     min_value=0.0,
                     value=0.0,
-                    step=1.0
+                    step=1.0,
+                    key=f"input_{key}"
                 )
 
     submitted = st.form_submit_button(
-        "Estimate Premium",
+        "💰 Estimate Premium",
         type="primary",
         use_container_width=True
     )
 
+# -----------------------------------
+# 5. Predict Insurance Premium
+# -----------------------------------
 if submitted:
-    try:
-        input_df = pd.DataFrame([inputs], columns=features)
-        scaled_input = scaler.transform(input_df)
-        prediction = model.predict(scaled_input)[0]
 
-        st.divider()
-        st.subheader("Prediction Result")
-        st.metric(
-            "Estimated Insurance Premium",
-            f"{prediction:,.2f}"
+    try:
+        # Arrange inputs in the saved model's feature order
+        input_df = pd.DataFrame(
+            [inputs],
+            columns=features
         )
 
+        # Convert input values to numeric format
+        input_df = input_df.astype(float)
+
+        # Apply the existing fitted scaler
+        scaled_input = scaler.transform(input_df)
+
+        # Predict using the saved model
+        prediction = float(
+            model.predict(scaled_input)[0]
+        )
+
+        # Display prediction
+        st.divider()
+        st.subheader("Your Estimated Premium")
+
+        st.metric(
+            label="Estimated Insurance Premium",
+            value=f"₹{prediction:,.2f}"
+        )
+
+        st.caption(
+            "This is a machine learning estimate, "
+            "not an official insurance quotation."
+        )
+
+        # Show entered values
         with st.expander("View Your Input Details"):
-            st.dataframe(input_df, use_container_width=True)
+
+            st.dataframe(
+                input_df,
+                use_container_width=True
+            )
 
     except Exception as e:
-        st.error(f"Prediction failed: {e}")
 
+        st.error(
+            f"Unable to calculate the premium: {e}"
+        )
+
+# -----------------------------------
+# 6. Footer
+# -----------------------------------
 st.divider()
-st.caption("Health Insurance Premium Estimator | Machine Learning")
 
+st.caption(
+    "Health Insurance Premium Estimator | "
+    "Machine Learning Project"
+)
+
+# -----------------------------------
+# 7. Model Feature Information
+# -----------------------------------
 with st.expander("View Model Features"):
+
     st.write(features)
