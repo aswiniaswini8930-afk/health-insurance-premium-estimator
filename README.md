@@ -1,3 +1,6 @@
+# health-insurance-premium-estimator
+Health Insurance Premium Prediction using Machine Learning and Streamlit.
+
 # Health Insurance Premium Estimator
 
 A machine learning web application built using Python and Streamlit to estimate health insurance premiums.
